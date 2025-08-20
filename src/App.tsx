@@ -122,8 +122,13 @@ function App() {
                 placeholder="House number"
               />
             </div>
-            <Button type="submit">Find</Button>
+            <Button type="submit" variant="primary">
+              Find
+            </Button>
           </fieldset>
+          <Button type="submit" variant="secondary">
+            Clear all fields
+          </Button>
         </form>
         {addresses.length > 0 &&
           addresses.map((address) => {

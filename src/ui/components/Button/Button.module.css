@@ -12,6 +12,15 @@
   width: 100%;
 }
 
+.primary {
+  background-color: #413ef7;
+}
+.secondary {
+  background-color: white;
+  border-color: #413ef7;
+  color: #413ef7;
+}
+
 .button:hover {
   transform: scale(1.05);
 }
