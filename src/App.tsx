@@ -10,6 +10,28 @@ import useAddressBook from "@/hooks/useAddressBook";
 
 import styles from "./App.module.css";
 import { Address as AddressType } from "./types";
+import Form, { FormEntry } from "@/components/Form/Form";
+import handle from "@/pages/api/getAddresses";
+import ErrorMessage from "@/components/ErrorMessage/ErrorMessage";
+import useFormFields from "@/hooks/useFormFields";
+
+const initialFormEntries: FormEntry[] = [
+  {
+    name: "postCode",
+    placeholder: "Post Code",
+    value: "",
+  },
+  {
+    name: "houseNumber",
+    placeholder: "House number",
+    value: "",
+  },
+];
+
+const initialPersonFormEntries: FormEntry[] = [
+  { name: "firstName", placeholder: "First name", value: "" },
+  { name: "lastName", placeholder: "Last name", value: "" },
+];
 
 function App() {
   /**
@@ -20,11 +42,12 @@ function App() {
    * - Remove all individual React.useState
    * - Remove all individual onChange handlers, like handlePostCodeChange for example
    */
-  const [postCode, setPostCode] = React.useState("");
-  const [houseNumber, setHouseNumber] = React.useState("");
-  const [firstName, setFirstName] = React.useState("");
-  const [lastName, setLastName] = React.useState("");
   const [selectedAddress, setSelectedAddress] = React.useState("");
+
+  const [formEntries, setFormEntries] = React.useState(initialFormEntries);
+  const [personFormEntries, setPersonFormEntries] = React.useState(
+    initialPersonFormEntries
+  );
   /**
    * Results states
    */
@@ -38,21 +61,13 @@ function App() {
   /**
    * Text fields onChange handlers
    */
-  const handlePostCodeChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setPostCode(e.target.value);
-
-  const handleHouseNumberChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setHouseNumber(e.target.value);
-
-  const handleFirstNameChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setFirstName(e.target.value);
-
-  const handleLastNameChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setLastName(e.target.value);
 
   const handleSelectedAddressChange = (
     e: React.ChangeEvent<HTMLInputElement>
-  ) => setSelectedAddress(e.target.value);
+  ) => {
+    setSelectedAddress(e.target.value);
+    setError("");
+  };
 
   /** TODO: Fetch addresses based on houseNumber and postCode using the local BE api
    * - Example URL of API: ${process.env.NEXT_PUBLIC_URL}/api/getAddresses?postcode=1345&streetnumber=350
@@ -63,16 +78,35 @@ function App() {
    * - Ensure to clear previous search results on each click
    * - Bonus: Add a loading state in the UI while fetching addresses
    */
-  const handleAddressSubmit = async (e: React.ChangeEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleAddressSubmit = async (fields: FormEntry[]) => {
+    const pCode = fields[0].value;
+    const hNo = fields[1].value;
+    try {
+      const res = await fetch(
+        `api/getAddresses?postcode=${pCode}&streetnumber=${hNo}`
+      );
+      const data = await res.json();
+      console.log(data);
+      if (data.status === "error") {
+        throw new Error(data.errormessage);
+      }
+
+      setAddresses(data.details);
+      setError("");
+    } catch (error) {
+      setError(error + "");
+      setAddresses([]);
+      setSelectedAddress("");
+    } finally {
+      // console.log("loading: false");
+      console.log(error);
+    }
   };
 
   /** TODO: Add basic validation to ensure first name and last name fields aren't empty
    * Use the following error message setError("First name and last name fields mandatory!")
    */
-  const handlePersonSubmit = (e: React.ChangeEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
+  const handlePersonSubmit = (fields: FormEntry[]) => {
     if (!selectedAddress || !addresses.length) {
       setError(
         "No address selected, try to select an address or find one if you haven't"
@@ -89,7 +123,28 @@ function App() {
       return;
     }
 
-    addAddress({ ...foundAddress, firstName, lastName });
+    const fName = fields[0].value;
+    const lName = fields[1].value;
+
+    if (!(fName && lName)) {
+      setError("First name and Last name fields are mandatory!");
+      return;
+    }
+
+    addAddress({ ...foundAddress, firstName: fName, lastName: lName });
+    setError("");
+  };
+
+  const handleClearAllFields = () => {
+    setAddresses([]);
+    setSelectedAddress("");
+    setError("");
+    setFormEntries(initialFormEntries);
+  };
+
+  const handleClearAllPersonFields = () => {
+    setError("");
+    setPersonFormEntries(initialPersonFormEntries);
   };
 
   return (
@@ -103,35 +158,19 @@ function App() {
           </small>
         </h1>
         {/* TODO: Create generic <Form /> component to display form rows, legend and a submit button  */}
-        <form onSubmit={handleAddressSubmit}>
-          <fieldset>
-            <legend>🏠 Find an address</legend>
-            <div className={styles.formRow}>
-              <InputText
-                name="postCode"
-                onChange={handlePostCodeChange}
-                placeholder="Post Code"
-                value={postCode}
-              />
-            </div>
-            <div className={styles.formRow}>
-              <InputText
-                name="houseNumber"
-                onChange={handleHouseNumberChange}
-                value={houseNumber}
-                placeholder="House number"
-              />
-            </div>
-            <Button type="submit" variant="primary">
-              Find
-            </Button>
-          </fieldset>
-          <Button type="submit" variant="secondary">
-            Clear all fields
-          </Button>
-        </form>
-        {addresses.length > 0 &&
+        <Form
+          label={"🏠 Find an address"}
+          loading={false}
+          formEntries={formEntries}
+          onFormSubmit={handleAddressSubmit}
+          submitText="Find"
+          clearFields={true}
+          resetRelatedFields={handleClearAllFields}
+        />
+
+        {addresses?.length > 0 &&
           addresses.map((address) => {
+            console.log(address);
             return (
               <Radio
                 name="selectedAddress"
@@ -145,32 +184,19 @@ function App() {
           })}
         {/* TODO: Create generic <Form /> component to display form rows, legend and a submit button  */}
         {selectedAddress && (
-          <form onSubmit={handlePersonSubmit}>
-            <fieldset>
-              <legend>✏️ Add personal info to address</legend>
-              <div className={styles.formRow}>
-                <InputText
-                  name="firstName"
-                  placeholder="First name"
-                  onChange={handleFirstNameChange}
-                  value={firstName}
-                />
-              </div>
-              <div className={styles.formRow}>
-                <InputText
-                  name="lastName"
-                  placeholder="Last name"
-                  onChange={handleLastNameChange}
-                  value={lastName}
-                />
-              </div>
-              <Button type="submit">Add to addressbook</Button>
-            </fieldset>
-          </form>
+          <Form
+            label="✏️ Add personal info to address"
+            loading={false}
+            formEntries={personFormEntries}
+            onFormSubmit={handlePersonSubmit}
+            submitText="Add to addressbook"
+            clearFields={true}
+            resetRelatedFields={handleClearAllPersonFields}
+          />
         )}
 
         {/* TODO: Create an <ErrorMessage /> component for displaying an error message */}
-        {error && <div className="error">{error}</div>}
+        {error && <ErrorMessage error={error} />}
 
         {/* TODO: Add a button to clear all form fields. 
         Button must look different from the default primary button, see design. 

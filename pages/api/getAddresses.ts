@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
 import generateMockAddresses from "../../src/utils/generateMockAddresses";
+import transformAddress from "src/core/models/address";
 
 export default async function handle(
   req: NextApiRequest,
@@ -30,22 +31,42 @@ export default async function handle(
    *  is all digits and non negative
    */
   const isStrictlyNumeric = (value: string) => {
-    return true;
+    return /^\d+$/.test(value);
   };
 
   /** TODO: Refactor the code below so there is no duplication of logic for postCode/streetNumber digit checks. */
-  if (!isStrictlyNumeric(postcode as string)) {
-    return res.status(400).send({
-      status: "error",
-      errormessage: "Postcode must be all digits and non negative!",
-    });
+  const validateInputField = (
+    value: string | string[],
+    errorMessage: string
+  ) => {
+    if (!value || Array.isArray(value)) return false;
+
+    if (!isStrictlyNumeric(value)) {
+      res.status(400).send({
+        status: "error",
+        errormessage: errorMessage,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  if (
+    validateInputField(
+      postcode,
+      "Postcode must be all digits and non negative!"
+    )
+  ) {
+    return;
   }
 
-  if (!isStrictlyNumeric(streetnumber as string)) {
-    return res.status(400).send({
-      status: "error",
-      errormessage: "Street Number must be all digits and non negative!",
-    });
+  if (
+    validateInputField(
+      streetnumber,
+      "Street Number must be all digits and non negative!"
+    )
+  ) {
+    return;
   }
 
   const mockAddresses = generateMockAddresses(
@@ -59,9 +80,20 @@ export default async function handle(
 
     // delay the response by 500ms - for loading status check
     await timeout(500);
+    const transformedAddress = mockAddresses.map((address) =>
+      transformAddress({
+        ...address,
+        id: "",
+        firstName: "",
+        lastName: "",
+        lon: "",
+        lat: "",
+      })
+    );
+
     return res.status(200).json({
       status: "ok",
-      details: mockAddresses,
+      details: transformedAddress,
     });
   }
 
